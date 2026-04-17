@@ -1,0 +1,699 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Calculator</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:ital,wght@0,400;0,500;1,400&family=Bebas+Neue&display=swap" rel="stylesheet"/>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg:        #080808;
+    --surface:   #111111;
+    --orange:    #ff8c00;
+    --orange-dim:#a85a00;
+    --btn-dark:  #1e1e1e;
+    --btn-hover: #2c2c2c;
+    --white:     #f0f0f0;
+    --grey:      #666;
+    --red:       #c0392b;
+    --glow:      0 0 18px rgba(255,140,0,0.45);
+  }
+
+  body {
+    background: var(--bg);
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: 'DM Mono', monospace;
+    overflow: hidden;
+  }
+
+  /* animated background grid */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image:
+      linear-gradient(rgba(255,140,0,0.04) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(255,140,0,0.04) 1px, transparent 1px);
+    background-size: 40px 40px;
+    animation: gridScroll 20s linear infinite;
+    pointer-events: none;
+    z-index: 0;
+  }
+  @keyframes gridScroll {
+    0%   { background-position: 0 0; }
+    100% { background-position: 40px 40px; }
+  }
+
+  /* vignette */
+  body::after {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background: radial-gradient(ellipse at center, transparent 40%, #080808 100%);
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  /* ── CALCULATOR SHELL ── */
+  .calc-shell {
+    position: relative;
+    z-index: 1;
+    width: 380px;
+    background: var(--surface);
+    border: 1px solid #222;
+    border-radius: 24px;
+    padding: 20px 18px 24px;
+    box-shadow: 0 30px 80px rgba(0,0,0,0.8), 0 0 0 1px #1a1a1a;
+    animation: appear 0.5s cubic-bezier(0.16,1,0.3,1);
+  }
+  @keyframes appear {
+    from { opacity: 0; transform: translateY(30px) scale(0.97); }
+    to   { opacity: 1; transform: translateY(0) scale(1); }
+  }
+
+  /* ── TOP BAR ── */
+  .top-bar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 14px;
+  }
+  .app-title {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 22px;
+    letter-spacing: 3px;
+    color: var(--orange);
+    text-shadow: var(--glow);
+  }
+  .history-btn {
+    background: #1a1a1a;
+    border: 1px solid #333;
+    color: var(--orange);
+    font-family: 'DM Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 1px;
+    padding: 6px 14px;
+    border-radius: 20px;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+  .history-btn:hover {
+    background: var(--orange);
+    color: #000;
+    border-color: var(--orange);
+    box-shadow: var(--glow);
+  }
+
+  /* ── DISPLAY ── */
+  .display-wrap {
+    background: #0c0c0c;
+    border: 1px solid #1f1f1f;
+    border-radius: 14px;
+    padding: 12px 16px;
+    margin-bottom: 16px;
+    min-height: 88px;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-end;
+    overflow: hidden;
+  }
+  .display-expr {
+    font-size: 12px;
+    color: var(--grey);
+    min-height: 18px;
+    word-break: break-all;
+    text-align: right;
+    margin-bottom: 4px;
+  }
+  .display-main {
+    font-size: 32px;
+    color: var(--white);
+    text-align: right;
+    word-break: break-all;
+    line-height: 1.2;
+    transition: font-size 0.15s;
+  }
+  .display-main.small { font-size: 22px; }
+
+  /* power mode indicator */
+  .power-indicator {
+    font-size: 10px;
+    color: var(--orange);
+    text-align: right;
+    height: 14px;
+    letter-spacing: 1px;
+    opacity: 0;
+    transition: opacity 0.2s;
+  }
+  .power-indicator.active { opacity: 1; }
+
+  /* ── BUTTON GRIDS ── */
+  .btn-grid {
+    display: grid;
+    gap: 9px;
+  }
+  .btn-grid.normal     { grid-template-columns: repeat(4, 1fr); }
+  .btn-grid.scientific { grid-template-columns: repeat(5, 1fr); }
+
+  /* ── BUTTONS ── */
+  .btn {
+    aspect-ratio: 1;
+    border-radius: 50%;
+    border: none;
+    cursor: pointer;
+    font-family: 'DM Mono', monospace;
+    font-style: italic;
+    font-size: 15px;
+    color: var(--white);
+    background: var(--btn-dark);
+    position: relative;
+    transition: transform 0.1s, box-shadow 0.15s, background 0.15s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    user-select: none;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .btn.sci { font-size: 12px; }
+
+  .btn.op {
+    background: var(--orange);
+    color: #000;
+    font-weight: 500;
+  }
+
+  .btn:hover {
+    transform: scale(1.07);
+    box-shadow: 0 6px 20px rgba(0,0,0,0.5);
+  }
+  .btn.op:hover { box-shadow: var(--glow); }
+
+  .btn:active {
+    transform: scale(0.93);
+    box-shadow: none;
+  }
+
+  .btn.op:active { background: var(--orange-dim); }
+  .btn:not(.op):active { background: #333; }
+
+  /* ripple */
+  .btn::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: 50%;
+    background: rgba(255,255,255,0.12);
+    opacity: 0;
+    transform: scale(0);
+    transition: transform 0.3s, opacity 0.3s;
+  }
+  .btn:active::after { transform: scale(1); opacity: 1; transition: none; }
+
+  /* ── HISTORY MODAL ── */
+  .modal-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.85);
+    z-index: 100;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.25s;
+  }
+  .modal-overlay.open {
+    opacity: 1;
+    pointer-events: all;
+  }
+  .modal {
+    background: #111;
+    border: 1px solid #222;
+    border-radius: 20px;
+    width: 340px;
+    max-height: 75vh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    transform: translateY(20px) scale(0.97);
+    transition: transform 0.25s cubic-bezier(0.16,1,0.3,1);
+    box-shadow: 0 40px 100px rgba(0,0,0,0.8);
+  }
+  .modal-overlay.open .modal { transform: translateY(0) scale(1); }
+
+  .modal-header {
+    padding: 16px 18px 12px;
+    border-bottom: 1px solid #1e1e1e;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .modal-title {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 18px;
+    letter-spacing: 2px;
+    color: var(--orange);
+  }
+  .modal-close {
+    background: none;
+    border: none;
+    color: var(--grey);
+    font-size: 20px;
+    cursor: pointer;
+    padding: 2px 6px;
+    border-radius: 6px;
+    transition: color 0.2s;
+  }
+  .modal-close:hover { color: var(--white); }
+
+  .history-list {
+    overflow-y: auto;
+    flex: 1;
+    padding: 8px 10px;
+  }
+  .history-list::-webkit-scrollbar { width: 4px; }
+  .history-list::-webkit-scrollbar-thumb { background: #333; border-radius: 4px; }
+
+  .history-item {
+    padding: 10px 12px;
+    border-radius: 10px;
+    margin-bottom: 6px;
+    cursor: pointer;
+    border: 1px solid transparent;
+    transition: all 0.15s;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 13px;
+  }
+  .history-item:hover { background: #1a1a1a; border-color: #2a2a2a; }
+  .history-item.selected { background: #1a1000; border-color: var(--orange-dim); }
+
+  .history-expr { color: var(--grey); flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .history-result { color: var(--orange); margin-left: 12px; font-weight: 500; }
+
+  .history-empty { color: var(--grey); text-align: center; padding: 30px; font-size: 13px; }
+
+  .modal-footer {
+    padding: 12px 14px;
+    border-top: 1px solid #1e1e1e;
+    display: flex;
+    gap: 8px;
+  }
+  .modal-footer button {
+    flex: 1;
+    padding: 10px;
+    border: none;
+    border-radius: 10px;
+    font-family: 'DM Mono', monospace;
+    font-size: 12px;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+  .btn-del-sel { background: var(--red); color: #fff; }
+  .btn-del-sel:hover { background: #e74c3c; }
+  .btn-clr-all { background: var(--orange); color: #000; }
+  .btn-clr-all:hover { box-shadow: var(--glow); }
+  .btn-use { background: #1e1e1e; color: var(--white); }
+  .btn-use:hover { background: #2c2c2c; }
+
+  /* toast */
+  .toast {
+    position: fixed;
+    bottom: 30px;
+    left: 50%;
+    transform: translateX(-50%) translateY(20px);
+    background: var(--orange);
+    color: #000;
+    font-family: 'DM Mono', monospace;
+    font-size: 12px;
+    padding: 8px 20px;
+    border-radius: 20px;
+    opacity: 0;
+    transition: all 0.3s;
+    z-index: 200;
+    pointer-events: none;
+  }
+  .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+  /* mode badge */
+  .mode-badge {
+    font-size: 10px;
+    letter-spacing: 1px;
+    color: var(--grey);
+    text-align: center;
+    margin-bottom: 8px;
+    text-transform: uppercase;
+    height: 14px;
+  }
+</style>
+</head>
+<body>
+
+<div class="calc-shell">
+  <div class="top-bar">
+    <span class="app-title">Calc</span>
+    <button class="history-btn" onclick="openHistory()">⏱ HISTORY</button>
+  </div>
+
+  <div class="display-wrap">
+    <div class="display-expr" id="exprLine"></div>
+    <div class="display-main" id="display">0</div>
+    <div class="power-indicator" id="powerInd">^ EXP MODE</div>
+  </div>
+
+  <div class="mode-badge" id="modeBadge">STANDARD</div>
+
+  <div id="btnArea"></div>
+</div>
+
+<!-- HISTORY MODAL -->
+<div class="modal-overlay" id="modalOverlay">
+  <div class="modal">
+    <div class="modal-header">
+      <span class="modal-title">History</span>
+      <button class="modal-close" onclick="closeHistory()">✕</button>
+    </div>
+    <div class="history-list" id="historyList"></div>
+    <div class="modal-footer">
+      <button class="btn-del-sel" onclick="deleteSelected()">Delete Selected</button>
+      <button class="btn-clr-all" onclick="clearAll()">Clear All</button>
+      <button class="btn-use" onclick="useSelected()">Use</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// ── superscript maps ──────────────────────────────────────────────────────────
+const SUPER_MAP = {'0':'⁰','1':'¹','2':'²','3':'³','4':'⁴','5':'⁵','6':'⁶','7':'⁷','8':'⁸','9':'⁹'};
+const REV_SUPER = Object.fromEntries(Object.entries(SUPER_MAP).map(([k,v])=>[v,k]));
+const SUPER_CHARS = new Set(Object.values(SUPER_MAP));
+
+// ── state ─────────────────────────────────────────────────────────────────────
+let displayVal  = '0';
+let exprVal     = '';
+let powerMode   = false;
+let isScientific = false;
+let history     = JSON.parse(localStorage.getItem('calc_history') || '[]');
+let selectedHistIdx = new Set();
+
+// ── button layouts ─────────────────────────────────────────────────────────────
+const NORMAL_KEYS = [
+  ['C','%','÷','×'],
+  ['7','8','9','-'],
+  ['4','5','6','+'],
+  ['1','2','3','='],
+  ['⇄','0','.','⌫'],
+];
+
+const SCI_KEYS = [
+  ['sin','cos','tan','log','ln'],
+  ['xʸ','√x','x!','(', ')'],
+  ['7','8','9','÷','AC'],
+  ['4','5','6','×','π'],
+  ['1','2','3','-','e'],
+  ['⇄','0','.', '+','='],
+];
+
+const OP_KEYS = new Set(['+','-','×','÷','=','%','C','⌫','⇄','xʸ','π','e','AC',
+                          'sin','cos','tan','log','ln','√x','x!']);
+
+// ── render buttons ─────────────────────────────────────────────────────────────
+function renderButtons() {
+  const layout = isScientific ? SCI_KEYS : NORMAL_KEYS;
+  const cols   = Math.max(...layout.map(r=>r.length));
+  const area   = document.getElementById('btnArea');
+  area.innerHTML = '';
+  const grid = document.createElement('div');
+  grid.className = `btn-grid ${isScientific ? 'scientific' : 'normal'}`;
+  layout.forEach(row => {
+    row.forEach(key => {
+      const b = document.createElement('button');
+      b.className = 'btn' + (OP_KEYS.has(key) ? ' op' : '') + (isScientific ? ' sci' : '');
+      b.textContent = key;
+      b.addEventListener('click', () => handleClick(key));
+      grid.appendChild(b);
+    });
+  });
+  area.appendChild(grid);
+}
+
+// ── display helpers ───────────────────────────────────────────────────────────
+function setDisplay(val) {
+  displayVal = String(val);
+  const el = document.getElementById('display');
+  el.textContent = displayVal;
+  el.className = 'display-main' + (displayVal.length > 12 ? ' small' : '');
+}
+
+function appendDisplay(ch) {
+  if (displayVal === '0' && ch !== '.') {
+    setDisplay(ch);
+  } else {
+    setDisplay(displayVal + ch);
+  }
+}
+
+function setPowerMode(on) {
+  powerMode = on;
+  document.getElementById('powerInd').className = 'power-indicator' + (on ? ' active' : '');
+}
+
+// ── expression builder (for eval) ─────────────────────────────────────────────
+function toEvalExpr(text) {
+  let res = '';
+  let i = 0;
+  while (i < text.length) {
+    const ch = text[i];
+    if (SUPER_CHARS.has(ch)) {
+      let exp = '';
+      while (i < text.length && SUPER_CHARS.has(text[i])) {
+        exp += REV_SUPER[text[i]]; i++;
+      }
+      res += `**${exp}`;
+      continue;
+    }
+    res += ch; i++;
+  }
+  return res
+    .replace(/×/g,'*').replace(/÷/g,'/')
+    .replace(/π/g, String(Math.PI))
+    .replace(/\be\b/g, String(Math.E));
+}
+
+// ── click handler ──────────────────────────────────────────────────────────────
+function handleClick(v) {
+  try {
+    if (/^\d$/.test(v)) {
+      if (powerMode) {
+        appendDisplay(SUPER_MAP[v]);
+        setPowerMode(false);
+      } else {
+        appendDisplay(v);
+      }
+      return;
+    }
+
+    switch(v) {
+      case 'xʸ':
+        setPowerMode(true);
+        break;
+
+      case '+': case '-': case '×': case '÷': case '%': case '(': case ')':
+        if (displayVal === '0' && v !== '-') break;
+        appendDisplay(v);
+        break;
+
+      case '.':
+        // prevent double dot in last number segment
+        const parts = displayVal.split(/[\+\-×÷]/);
+        if (!parts[parts.length-1].includes('.'))
+          appendDisplay('.');
+        break;
+
+      case '=': {
+        const full = displayVal;
+        const expr = toEvalExpr(full);
+        const result = String(Function('"use strict"; return (' + expr + ')')());
+        exprVal = full;
+        document.getElementById('exprLine').textContent = full + ' =';
+        history.unshift({ expr: full, result });
+        saveHistory();
+        setDisplay(result);
+        break;
+      }
+
+      case 'C': case 'AC':
+        setDisplay('0');
+        exprVal = '';
+        document.getElementById('exprLine').textContent = '';
+        setPowerMode(false);
+        break;
+
+      case '⌫':
+        if (displayVal.length <= 1) { setDisplay('0'); }
+        else { setDisplay(displayVal.slice(0,-1)); }
+        break;
+
+      case '⇄':
+        isScientific = !isScientific;
+        document.getElementById('modeBadge').textContent =
+          isScientific ? 'SCIENTIFIC' : 'STANDARD';
+        renderButtons();
+        break;
+
+      case 'π':
+        appendDisplay('π');
+        break;
+
+      case 'e':
+        appendDisplay('e');
+        break;
+
+      case '√x': {
+        const n = parseFloat(toEvalExpr(displayVal));
+        const r = String(Math.sqrt(n));
+        document.getElementById('exprLine').textContent = `√(${displayVal}) =`;
+        setDisplay(r);
+        break;
+      }
+
+      case 'x!': {
+        const n = parseInt(toEvalExpr(displayVal));
+        let f = 1; for(let i=2;i<=n;i++) f*=i;
+        document.getElementById('exprLine').textContent = `${displayVal}! =`;
+        setDisplay(String(f));
+        break;
+      }
+
+      case 'sin': {
+        const r = String(Math.sin(parseFloat(toEvalExpr(displayVal)) * Math.PI / 180));
+        document.getElementById('exprLine').textContent = `sin(${displayVal}) =`;
+        setDisplay(r); break;
+      }
+      case 'cos': {
+        const r = String(Math.cos(parseFloat(toEvalExpr(displayVal)) * Math.PI / 180));
+        document.getElementById('exprLine').textContent = `cos(${displayVal}) =`;
+        setDisplay(r); break;
+      }
+      case 'tan': {
+        const r = String(Math.tan(parseFloat(toEvalExpr(displayVal)) * Math.PI / 180));
+        document.getElementById('exprLine').textContent = `tan(${displayVal}) =`;
+        setDisplay(r); break;
+      }
+      case 'log': {
+        const r = String(Math.log10(parseFloat(toEvalExpr(displayVal))));
+        document.getElementById('exprLine').textContent = `log(${displayVal}) =`;
+        setDisplay(r); break;
+      }
+      case 'ln': {
+        const r = String(Math.log(parseFloat(toEvalExpr(displayVal))));
+        document.getElementById('exprLine').textContent = `ln(${displayVal}) =`;
+        setDisplay(r); break;
+      }
+    }
+  } catch(e) {
+    setDisplay('Error');
+    setPowerMode(false);
+  }
+}
+
+// ── keyboard support ──────────────────────────────────────────────────────────
+document.addEventListener('keydown', e => {
+  const map = {
+    'Enter':'=','Backspace':'⌫','Escape':'C',
+    '*':'×','/':'÷','%':'%',
+  };
+  const k = map[e.key] || e.key;
+  const valid = new Set([...('0123456789.+-()'), '=','⌫','C','×','÷','%']);
+  if (valid.has(k)) { e.preventDefault(); handleClick(k); }
+});
+
+// ── history persistence ───────────────────────────────────────────────────────
+function saveHistory() {
+  localStorage.setItem('calc_history', JSON.stringify(history.slice(0,200)));
+}
+
+// ── history modal ─────────────────────────────────────────────────────────────
+function openHistory() {
+  selectedHistIdx.clear();
+  renderHistoryList();
+  document.getElementById('modalOverlay').classList.add('open');
+}
+function closeHistory() {
+  document.getElementById('modalOverlay').classList.remove('open');
+}
+
+function renderHistoryList() {
+  const list = document.getElementById('historyList');
+  list.innerHTML = '';
+  if (!history.length) {
+    list.innerHTML = '<div class="history-empty">No history yet</div>';
+    return;
+  }
+  history.forEach((item, i) => {
+    const div = document.createElement('div');
+    div.className = 'history-item' + (selectedHistIdx.has(i) ? ' selected' : '');
+    div.innerHTML = `
+      <span class="history-expr">${item.expr}</span>
+      <span class="history-result">${item.result}</span>
+    `;
+    div.addEventListener('click', () => {
+      if (selectedHistIdx.has(i)) selectedHistIdx.delete(i);
+      else selectedHistIdx.add(i);
+      div.classList.toggle('selected');
+    });
+    list.appendChild(div);
+  });
+}
+
+function deleteSelected() {
+  if (!selectedHistIdx.size) { showToast('Select items first'); return; }
+  history = history.filter((_, i) => !selectedHistIdx.has(i));
+  selectedHistIdx.clear();
+  saveHistory();
+  renderHistoryList();
+  showToast('Deleted');
+}
+
+function clearAll() {
+  history = [];
+  selectedHistIdx.clear();
+  saveHistory();
+  renderHistoryList();
+  showToast('History cleared');
+}
+
+function useSelected() {
+  if (selectedHistIdx.size !== 1) { showToast('Select one item to use'); return; }
+  const idx = [...selectedHistIdx][0];
+  setDisplay(history[idx].result);
+  document.getElementById('exprLine').textContent = history[idx].expr + ' =';
+  closeHistory();
+}
+
+// close on overlay click
+document.getElementById('modalOverlay').addEventListener('click', e => {
+  if (e.target === document.getElementById('modalOverlay')) closeHistory();
+});
+
+// ── toast ─────────────────────────────────────────────────────────────────────
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2000);
+}
+
+// ── init ──────────────────────────────────────────────────────────────────────
+renderButtons();
+</script>
+</body>
+</html>
